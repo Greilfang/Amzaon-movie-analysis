@@ -34,6 +34,7 @@ def wrapCookie(cookies):
     cookie_jar = requests.cookies.RequestsCookieJar()
     resd = requests.utils.dict_from_cookiejar(cookies)
     cookie_jar.set([key for key in resd][0], resd[[key for key in resd][0]], domain='www.amazon.com')
+    print('wrapped:',cookie_jar.items())
     return cookie_jar
 
 
@@ -43,9 +44,11 @@ class Crawler:
         self.config = config
         self.errorIDs=[]
         self.cookie_pool=[]
+        self.cookie_jar=requests.cookies.RequestsCookieJar()
 
-    def extract_prime_info(self):
-        pass
+    def extract_prime_info(self,text,ID):
+        soup=BeautifulSoup(text,lxml)
+        
     
     def scheduleCrawling(self):
         #MAX_THREAD_NUM=self.config['max_thread_num']
@@ -65,23 +68,37 @@ class Crawler:
             q=0.9,image/webp,image/apng,*/*;q=0.8',
         'accept-encoding': 'gzip, deflate, br'
         }
-        try:
-            if len(self.cookie_pool)==0:
-                response = requests.get(target_url,headers=header,timeout=10)
-                print('cookie:',response.cookies.items())
-                if len(response.cookies.items())!=0:
-                    cookie_jar=wrapCookie(response.cookies)
-                    self.cookie_pool.append(cookie_jar)
-            else:
-                cookie_jar=random.sample(self.cookie_pool,1)
-                response=requests.get(target_url,headers=header,cookies=cookie_jar,timeout=10)
-                if len(response.cookies.items())!=0:
-                    cookie_jar=wrapCookie(reponse.cookies)
-                    self.cookie_pool.append(cookie_jar)
-                    if len(self.cookie_pool>5):self.cookie_pool.pop(0)
-
-        except Exception:
-            print('Requests failed')
+        if len(self.cookie_jar.items())==0:
+            response=requests.get(target_url,headers=header,timeout=3)
+            if len(response.cookies.items())!=0:
+                print('get cookie:',response.cookies)
+                self.cookie_jar.update(response.cookies)
+                #self.cookie_jar=wrapCookie(response.cookies)
+        else:
+            #print('if take cookie:',self.cookie_jar)
+            response=requests.get(target_url,headers=header,cookies=self.cookie_jar,timeout=3)
+            if len(response.cookies.items())!=0:
+                self.cookie_jar.update(response.cookies)
+                print('check new:',response.cookies.items())
+        '''
+        print('present_cookie_length:',len(self.cookie_pool))
+        if len(self.cookie_pool)==0:
+            response = requests.get(target_url,headers=header,timeout=10)
+            print('cookie:',response.cookies.items())
+            if len(response.cookies.items())!=0:
+                cookie_jar=wrapCookie(response.cookies)
+                self.cookie_pool.append(cookie_jar)
+        else:
+            cookie_jar=random.sample(self.cookie_pool,1)[0]
+            print('chosen cookie jar:',cookie_jar)
+            response=requests.get(target_url,headers=header,cookies=cookie_jar,timeout=10)
+            print('cookie:',response.cookies.items())
+            if len(response.cookies.items())!=0:
+                cookie_jar=wrapCookie(response.cookies)
+                print('wrapped cookie jar:',cookie_jar)
+                self.cookie_pool.append(cookie_jar)
+                if len(self.cookie_pool>5):self.cookie_pool.pop(0)
+        '''
         if response.status_code == 404:
             print('Resource not found:',target_url)
             return None
@@ -97,8 +114,9 @@ class Crawler:
         if content is None:
             print('target_url:',target_url,'is not found')
         elif content is not None:
+            ID=target_url.split('/')[-1]
+            self.extract_prime_info(content,ID)
             save_html(target_url,content)
-            self.extract_prime_info()
         
 
 if __name__ == "__main__":
